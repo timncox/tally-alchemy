@@ -1,0 +1,46 @@
+# DAMPED at full with the UFG on One-shot: silence between hits; a gate on
+# J5 (or B1) strikes an enveloped tone.
+pot 1 0
+pot 2 0.5
+pot 3 0
+pot 4 0
+pot 5 0
+pot 6 0
+wait 2500
+tap b2                     # UFG page
+wait 300
+pot 1 0
+pot 1 0.42                 # TIME: ~3 Hz, a ~300 ms hit
+pot 5 1
+pot 5 0.75                 # LOOP selector -> One-shot
+wait 300
+tap b2
+wait 300
+tap b2
+wait 300
+tap b2                     # back to OSC
+wait 300
+expect led b2 green
+pot 6 1                    # DAMPED full
+wait 1500
+mark
+wait 500
+expect rms < 0.001
+cv 5 5
+wait 30
+cv 5 0
+mark
+wait 200
+expect rms > 0.02
+wait 1500
+mark
+wait 500
+expect rms < 0.001
+# B1 is the manual trigger
+press b1
+wait 30
+release b1
+mark
+wait 200
+expect rms > 0.02
+expect finite

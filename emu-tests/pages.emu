@@ -1,0 +1,37 @@
+# B2 cycles OSC (green) -> UFG (cyan) -> Pattern (amber) -> Mods (purple)
+# -> OSC. On the UFG page TIME moves J7's rate.
+pot 1 0
+pot 2 0.5
+pot 3 0
+pot 4 0
+pot 5 0
+pot 6 0
+wait 2500
+expect led b2 green
+tap b2
+wait 300
+expect led b2 cyan
+# UFG: TIME fast (loop), J7 makes many edges
+pot 1 0
+pot 1 0.65
+wait 500
+mark
+wait 1000
+expect edges 7 > 20
+pot 1 0.3
+wait 500
+mark
+wait 1000
+expect edges 7 < 3
+tap b2
+wait 300
+expect led b2 amber
+tap b2
+wait 300
+expect led b2 purple
+tap b2
+wait 300
+expect led b2 green
+mark
+wait 500
+expect tone 261.6 > 0.2

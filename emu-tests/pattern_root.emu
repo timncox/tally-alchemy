@@ -1,0 +1,55 @@
+# Pattern: the delta-sigma output on J8 steps with the UFG clock; PITCH
+# sends it to the OSC; B1 held 1 s writes a new pattern. Root page (B3 held):
+# B1 cycles the scale system off (grey) -> 12-TET (blue) -> JI (amber).
+pot 1 0
+pot 2 0.5
+pot 3 0
+pot 4 0
+pot 5 0
+pot 6 0
+wait 2500
+tap b2                     # UFG
+wait 300
+pot 1 0
+pot 1 0.55                 # TIME ~16 Hz clock
+wait 300
+tap b2                     # Pattern
+wait 300
+expect led b2 amber
+pot 2 0
+pot 2 1                    # LENGTH 16
+pot 1 0
+pot 1 0.6                  # CHANCE: new values
+wait 1500
+expect cvrange 8 > 0.5
+hold b1 1300               # a new pattern
+wait 500
+expect alive
+pot 4 0
+pot 4 1                    # PITCH: delta-sigma to the OSC
+wait 1500
+expect finite
+expect unclipped
+# scale system on the Root page
+press b3
+wait 300
+tap b1
+wait 200
+release b3
+wait 300
+expect led b3 blue
+press b3
+wait 300
+tap b1
+wait 200
+release b3
+wait 300
+expect led b3 amber
+press b3
+wait 300
+tap b1
+wait 200
+release b3
+wait 300
+expect led b3 grey
+expect alive

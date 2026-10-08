@@ -111,7 +111,7 @@ static constexpr LedPanel::Rgb kPageCol[kNumAppPages] = {
 
 /* B3 shows the scale system: dim off, blue 12-TET, gold JI. */
 static constexpr LedPanel::Rgb kScaleCol[3] = {
-    {0x10, 0x10, 0x10}, {0x30, 0x60, 0xFF}, {0xFF, 0xB0, 0x20}};
+    {0x50, 0x50, 0x50}, {0x30, 0x60, 0xFF}, {0xFF, 0xB0, 0x20}};
 
 static const char* const kModeLabels[2]    = {"Loop", "One-shot"};
 static const char* const kTrigLabels[4]    = {"Sync", "Reverse", "Sustain + sync", "Sustain + reverse"};

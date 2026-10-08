@@ -1,0 +1,56 @@
+# The waveshapers bring in harmonics: DEPTH on FBPM (self-feedback PM, sine
+# toward saw) and SHAPE (wavefolding, odd harmonics). Back to Centre is clean.
+pot 1 0
+pot 2 0.5
+pot 3 0
+pot 4 0
+pot 5 0
+pot 6 0
+wait 2500
+pot 1 0.875                # FBPM (the last node, counter-clockwise from FMNT)
+wait 300
+pot 4 1                    # DEPTH full
+wait 800
+expect tone 261.6 > 0.1
+expect tone 523.3 > 0.02
+expect finite
+expect unclipped
+pot 4 0
+pot 5 0.7                  # SHAPE: the folder
+wait 800
+expect tone 784.9 > 0.02
+expect finite
+pot 5 0
+pot 3 0.15                 # SHIFT: toward harmonic 2
+wait 800
+expect tone 523.3 > 0.05
+pot 3 0
+wait 800
+expect tone 523.3 < 0.01
+# every node with DEPTH up: finite, never clipping hard
+pot 4 1
+pot 1 0.0625
+wait 500
+expect finite
+pot 1 0.1875
+wait 500
+expect finite
+pot 1 0.3125
+wait 500
+expect finite
+pot 1 0.4375
+wait 500
+expect finite
+pot 1 0.5625
+wait 500
+expect finite
+pot 1 0.6875
+wait 500
+expect finite
+pot 1 0.8125
+wait 500
+expect finite
+mark
+wait 1000
+expect rms > 0.05
+expect unclipped

@@ -1,0 +1,43 @@
+# First boot = Centre: a C4 sine/cosine pair, no harmonics, at every MORPH
+# position. B2 shows the OSC page (green), B3 the scale system (off = grey).
+# The UFG loops (~2.6 Hz) on J7; J3 is V/Oct for Root.
+pot 1 0
+pot 2 0.5
+pot 3 0
+pot 4 0
+pot 5 0
+pot 6 0
+wait 2500
+expect booted
+expect led b2 green
+expect led b3 grey
+mark
+wait 1000
+expect tone 261.6 > 0.2
+expect tone 523.3 < 0.01
+expect tone 784.9 < 0.01
+expect finite
+expect unclipped
+expect ring 1 > 6
+expect cvrange 7 > 3
+# MORPH round the ring: still a pure sine
+pot 1 0.3
+wait 600
+expect tone 261.6 > 0.2
+expect tone 523.3 < 0.01
+pot 1 0.55
+wait 600
+expect tone 261.6 > 0.2
+expect tone 523.3 < 0.01
+pot 1 0.9
+wait 600
+expect tone 261.6 > 0.2
+expect tone 523.3 < 0.01
+# V/Oct on J3: +1 V = C5
+cv 3 1
+wait 600
+expect tone 523.3 > 0.2
+expect tone 261.6 < 0.01
+cv 3 0
+wait 600
+expect tone 261.6 > 0.2
