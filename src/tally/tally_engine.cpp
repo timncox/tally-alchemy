@@ -471,8 +471,7 @@ void Engine::Process(const Params& p, const float* ext, const float* tz,
     walk_ += (NextRandom() - 0.5f) * 0.06f;
     walk_ *= 0.9995f;
     walk_  = Clamp(walk_, -1.f, 1.f);
-    float time_oct = 3.f * Clamp(p.time_att, -1.f, 1.f) * walk_;
-    if (p.cv_target == kCvTime) time_oct += p.aux_cv;
+    const float time_oct = 3.f * Clamp(p.time_att, -1.f, 1.f) * walk_ + p.time_oct;
     const float t = Clamp(p.time, 0.f, 1.f);
     float ufg_hz;
     if (send_ufg) ufg_hz = NoteToHz((scale ? root_q : root_note) - 96.f + 120.f * t) * exp2f(time_oct);
@@ -485,7 +484,7 @@ void Engine::Process(const Params& p, const float* ext, const float* tz,
     else if (p.mod_track == kTrackUfg) src_hz = ufg_hz;
     else src_hz = NoteToHz(scale ? root_q : root_note);
 
-    float h = Clamp(p.harmonic + (p.cv_target == kCvHarmonic ? 0.2f * p.aux_cv : 0.f), -1.f, 1.f);
+    float h = Clamp(p.harmonic, -1.f, 1.f);
     float ratio = 1.f, mfr = 0.f;
     int   mn1 = 1, mn2 = 1;
     if (p.order == kOrderFree || h < 0.f)
@@ -550,17 +549,7 @@ void Engine::Process(const Params& p, const float* ext, const float* tz,
     const float ushp_t = ushp - (float)ushp_i;
     const float ufg_inc = ufg_hz * inv_sr_;
 
-    /* --- modulation inputs at the block rate ------------------------------ */
-    float aux_shift = 0.f, aux_depth = 0.f, aux_shape = 0.f, aux_damped = 0.f;
-    switch (p.cv_target)
-    {
-        case kCvShift:  aux_shift  = 0.2f * p.aux_cv; break;
-        case kCvDepth:  aux_depth  = 0.2f * p.aux_cv; break;
-        case kCvShape:  aux_shape  = 0.2f * p.aux_cv; break;
-        case kCvDamped: aux_damped = 0.2f * p.aux_cv; break;
-        default: break;
-    }
-    const float base_morph = Clamp(p.morph, 0.f, 1.f) * 8.f + 1.6f * p.morph_cv;
+    const float base_morph = Clamp(p.morph, 0.f, 1.f) * 8.f + p.morph_nodes;
 
     const float stretch_inc = 0.5f * Clamp(p.stretch, 0.f, 1.f) * osc_hz * inv_sr_;
     const float fold_inc    = stretch_inc + 0.004f * det * osc_hz * inv_sr_;
@@ -616,10 +605,10 @@ void Engine::Process(const Params& p, const float* ext, const float* tz,
 
         /* ---- modulation ---- */
         const float src = p.mod_source == kSrcDs ? ds_out_ : U;
-        const float s_  = Clamp(p.shift + aux_shift + p.shift_att * src, 0.f, 1.f);
-        const float d_  = Clamp(p.depth + aux_depth + p.depth_att * src, 0.f, 1.f);
-        const float h_  = Clamp(p.shape + aux_shape + p.shape_att * src, 0.f, 1.f);
-        const float D   = Clamp(p.damped + aux_damped + p.damped_att * src, 0.f, 1.f);
+        const float s_  = Clamp(p.shift + p.shift_att * src, 0.f, 1.f);
+        const float d_  = Clamp(p.depth + p.depth_att * src, 0.f, 1.f);
+        const float h_  = Clamp(p.shape + p.shape_att * src, 0.f, 1.f);
+        const float D   = Clamp(p.damped + p.damped_att * src, 0.f, 1.f);
 
         float mp = base_morph + 8.f * p.morph_att * src;
         mp = mp - 8.f * floorf(mp * 0.125f);

@@ -16,11 +16,12 @@
  *           step, double tap = undo it, hold 1 s = new pattern;
  *           with B3 held: scale system Off -> 12-TET -> JI
  *   B2      next page (OSC -> UFG -> PATTERN -> MODS)
- *   J1 EXT sync/track . J2 TZPM . J3 V/Oct (Root) . J4 Morph CV
- *   J5 UFG trigger . J6 CV (Settings: its target) . J7 UFG out . J8 D-S out
+ *   J1 EXT sync/track . J2 TZPM . J3 V/Oct (Root) . J7 UFG out . J8 D-S out
+ *   J4 / J5 / J6 mappable CV (cv_map.h): any knob, Settings choice or action,
+ *   with an amount; by default Morph / UFG trigger / Shape
  *   J9 SINE . J10 COSINE
- *   Settings (B2+B3 2 s): EXT mode, MOD tracks, J6 target, Q.TRIG;
- *   page 1 = the SD picker
+ *   Settings (B2+B3 2 s): EXT mode, MOD tracks; page 1 = the SD picker and
+ *   Q.TRIG; page 2 = the CV map (P1/P2 J4, P3/P4 J5, P5/P6 J6)
  */
 #include <math.h>
 #include <string.h>
@@ -46,6 +47,7 @@
 
 #include "mi_family.h"
 #include "picker.h"
+#include "cv_map.h"
 #include "tally_engine.h"
 
 #ifndef TALLY_VERSION
@@ -68,10 +70,13 @@ enum : uint8_t {
     kPageOsc = 0, kPageUfg = 1, kPagePattern = 2, kPageMods = 3, kPageRoot = 4,
     kNumAppPages = 5
 };
-enum : uint8_t { kSettingsMain = 0, kSettingsFirmware = 1 };
+enum : uint8_t { kSettingsMain = 0, kSettingsFirmware = 1, kSettingsCv = 2 };
 
 /* CV indices: 0 = J3 ... 5 = J8. */
-static constexpr uint8_t kCvVoct = 0u, kCvMorph = 1u, kCvTrig = 2u, kCvAux = 3u;
+static constexpr uint8_t kCvVoct = 0u;
+/* The three mappable jacks, J4-J6. */
+static constexpr uint8_t kNumMapped = 3u;
+static constexpr uint8_t kCvMapped[kNumMapped] = {1u, 2u, 3u};
 static constexpr uint8_t kCvUfgOut = 4u, kCvDsOut = 5u;
 
 /* ---- hardware + engine -------------------------------------------------- */
@@ -124,7 +129,6 @@ static const char* const kScaleLabels[9]   = {
     "Octatonic / utonal", "Hirajoshi / 11-limit", "Octaves"};
 static const char* const kExtLabels[3]     = {"Off", "Sync", "Track"};
 static const char* const kTrackLabels[3]   = {"Root", "OSC", "UFG"};
-static const char* const kAuxLabels[6]     = {"Shift", "Depth", "Shape", "Damped", "UFG time", "Harmonic"};
 static const char* const kOnOffLabels[2]   = {"Off", "On"};
 
 /* ---- pages --------------------------------------------------------------- */
@@ -321,9 +325,9 @@ static Page root_page = Page(kPageRoot).Name("Root").Color("#ffe0a0")
 static Jack jk_ext   ("J1",  "Ext sync/track", JackSig::AudioIn);
 static Jack jk_tz    ("J2",  "TZPM",           JackSig::AudioIn);
 static Jack jk_voct  ("J3",  "V/Oct (Root)",   JackSig::Voct);
-static Jack jk_morph ("J4",  "Morph",          JackSig::CvBi);
-static Jack jk_trig  ("J5",  "UFG trigger",    JackSig::Gate);
-static Jack jk_aux   ("J6",  "CV",             JackSig::CvBi);
+static Jack jk_cv4   ("J4",  "CV A (mappable; Morph)",       JackSig::CvBi);
+static Jack jk_cv5   ("J5",  "CV B (mappable; UFG trigger)", JackSig::CvBi);
+static Jack jk_cv6   ("J6",  "CV C (mappable; Shape)",       JackSig::CvBi);
 static Jack jk_ufg   ("J7",  "UFG out",        JackSig::CvUni);
 static Jack jk_ds    ("J8",  "Delta-sigma out", JackSig::CvUni);
 static Jack jk_sin   ("J9",  "Sine",           JackSig::AudioOut);
@@ -424,7 +428,9 @@ static hostlink::FsExtension fs_ext(sd);
 static hostlink::Host host(presets, "tally_alchemy", "Tally",
                            TALLY_VERSION, TALLY_GIT_HASH);
 static TallyExtras  extras;
-static SelectorHandle s_ext, s_track, s_aux, s_qtrig;
+static SelectorHandle s_ext, s_track, s_qtrig;
+static SelectorHandle s_dest[kNumMapped];
+static KnobHandle     s_amount[kNumMapped];
 
 #ifdef TALLY_BENCH_USB
 static daisy::UsbHandle          bench_usb;
@@ -437,7 +443,10 @@ static hostlink::CdcUsbTransport bench_cdc;
  * per block. Fields are single words: a torn struct is a one-block mix of
  * old and new values, never a torn float. */
 static tally::Params    P;
-static mi::Gate         g_trig;
+
+/* The CV map, set by the control thread from Settings page 2. */
+static volatile uint8_t g_dest[kNumMapped]   = {tally::kDestMorph, tally::kDestTrigger, tally::kDestShape};
+static volatile float   g_amount[kNumMapped] = {1.f, 1.f, 1.f};
 static volatile bool    g_b1_gate = false;
 
 /* Pattern requests: made by the control thread, run by the callback (the
@@ -503,7 +512,8 @@ static void OnPoll(uint32_t now)
 static mi::StoredWatch<kNumPots> watch[kNumAppPages];
 static float g_saved_peak  = 0.0f;
 static bool  prev_settings = false;
-static int   prev_sel[4]   = {-1, -1, -1, -1};
+static int   prev_sel[3]   = {-1, -1, -1};
+static float prev_map[2 * kNumMapped] = {-9.f, -9.f, -9.f, -9.f, -9.f, -9.f};
 
 static int sel(VirtualKnob& k, int n)
 {
@@ -568,16 +578,32 @@ static void OnFrame(void)
     P.root_send = (uint8_t)sel(route, 4);
     P.scale_system = extras.scale_system;
 
-    const int v[4] = {(int)s_ext.Value(), (int)s_track.Value(), (int)s_aux.Value(), (int)s_qtrig.Value()};
-    for (int i = 0; i < 4; i++)
+    const int v[3] = {(int)s_ext.Value(), (int)s_track.Value(), (int)s_qtrig.Value()};
+    for (int i = 0; i < 3; i++)
     {
         if (prev_sel[i] >= 0 && v[i] != prev_sel[i]) home.Touch(now);
         prev_sel[i] = v[i];
     }
     P.ext_mode  = (uint8_t)(v[0] < 0 ? 0 : (v[0] > 2 ? 2 : v[0]));
     P.mod_track = (uint8_t)(v[1] < 0 ? 0 : (v[1] > 2 ? 2 : v[1]));
-    P.cv_target = (uint8_t)(v[2] < 0 ? 0 : (v[2] >= tally::kNumCvTargets ? tally::kCvShape : v[2]));
-    P.qtrig     = v[3] == 1;
+    P.qtrig     = v[2] == 1;
+
+    /* The CV map: a destination and an amount (-1..+1) per jack. */
+    for (uint8_t j = 0; j < kNumMapped; j++)
+    {
+        int d = (int)s_dest[j].Value();
+        if (d < 0 || d >= tally::kNumDests) d = tally::kDestOff;
+        const float a = mi::clampf(2.f * s_amount[j].Value() - 1.f, -1.f, 1.f);
+        g_dest[j]   = (uint8_t)d;
+        g_amount[j] = a;
+        const float seen[2] = {(float)d, a};
+        for (int k = 0; k < 2; k++)
+        {
+            float& pm = prev_map[2 * j + k];
+            if (pm > -9.f && fabsf(seen[k] - pm) > 0.01f) home.Touch(now);
+            pm = seen[k];
+        }
+    }
 
     if (extras.Track(cpu, g_saved_peak)) home.Touch(now);
 
@@ -662,6 +688,7 @@ static void MorphRing(LedPanel& panel, uint8_t pot, const ArcGeometry& geo,
 /* ---- audio ----------------------------------------------------------------- */
 
 static tally::Params P_audio;
+static tally::CvJack s_jack[kNumMapped];
 
 static void AudioCallback(daisy::AudioHandle::InputBuffer  in,
                           daisy::AudioHandle::OutputBuffer out,
@@ -680,11 +707,19 @@ static void AudioCallback(daisy::AudioHandle::InputBuffer  in,
     if (g_req_write)   { g_req_write = false;   engine.WriteStep();   g_pattern_dirty = true; }
     if (g_req_restore) { g_req_restore = false; engine.RestoreStep(); g_pattern_dirty = true; }
 
-    P_audio          = P;
-    P_audio.voct     = hw.cv_jacks[kCvVoct].Volts();
-    P_audio.morph_cv = hw.cv_jacks[kCvMorph].Volts();
-    P_audio.aux_cv   = hw.cv_jacks[kCvAux].Volts();
-    P_audio.gate     = g_trig.Poll(hw) || g_b1_gate;
+    P_audio      = P;
+    P_audio.voct = hw.cv_jacks[kCvVoct].Volts();
+
+    /* J4-J6 through the CV map, onto this block's copy of the panel. */
+    tally::CvActions act;
+    for (uint8_t j = 0; j < kNumMapped; j++)
+        tally::ApplyCv(g_dest[j], hw.cv_jacks[kCvMapped[j]].Volts(), g_amount[j],
+                       s_jack[j], P_audio, act);
+    P_audio.gate = act.gate || g_b1_gate;
+    if (act.new_pattern)  { engine.NewPattern();  g_pattern_dirty = true; }
+    if (act.write_step)   { engine.WriteStep();   g_pattern_dirty = true; }
+    if (act.restore_step) { engine.RestoreStep(); g_pattern_dirty = true; }
+    if (act.next_scale)   g_scale_tap = true;
 
     engine.Process(P_audio, in[0], in[1], out[0], out[1], size);
 
@@ -709,7 +744,6 @@ int main(void)
     if (hw.BlockSize() != kBlockSize) mi::fault_forever(hw);
 
     engine.Init(hw.SampleRate());
-    g_trig.Init(hw, kCvTrig);
 
     /* J7 and J8 (the STM32 DAC) become outputs, written once per block. */
     hw.cv_jacks[kCvUfgOut].SetVolts(0.f);
@@ -733,17 +767,40 @@ int main(void)
         .Ident("mod_track").Name("Mod tracks")
         .Help("What the Mod oscillator's HARMONIC is relative to: Root, the "
               "OSC or the UFG, scale quantisation included.");
-    s_aux = settings.Page(kSettingsMain).Pot(5)
-        .Selector(kAuxLabels).Default(2)
-        .Ident("j6_target").Name("J6 CV")
-        .Help("Where J6 goes: SHIFT, DEPTH, SHAPE or DAMPED (0.2 per volt), "
-              "the UFG's TIME (1 V/oct) or HARMONIC (0.2 per volt).");
     s_qtrig = settings.Page(kSettingsFirmware).Pot(3)
         .Selector(kOnOffLabels).Default(0)
         .Ident("qtrig").Name("Q.Trig")
         .Help("**On**: each time the quantised OSC pitch changes step, the "
               "UFG is triggered (needs Root to the OSC and a scale). With the "
               "UFG on One-shot, an LFO into J3 auto-arpeggiates.");
+
+    /* Settings page 2: the CV map. Each row of the panel is one jack --
+     * P1/P2 J4, P3/P4 J5, P5/P6 J6 -- destination on the left, amount on
+     * the right (an attenuverter: noon off, full right +1, full left -1). */
+    {
+        static const char* const kDestIds[kNumMapped]    = {"cv_j4_dest", "cv_j5_dest", "cv_j6_dest"};
+        static const char* const kAmountIds[kNumMapped]  = {"cv_j4_amount", "cv_j5_amount", "cv_j6_amount"};
+        static const char* const kDestNames[kNumMapped]  = {"J4 to", "J5 to", "J6 to"};
+        static const char* const kAmountNames[kNumMapped] = {"J4 amount", "J5 amount", "J6 amount"};
+        const uint8_t defaults[kNumMapped] = {tally::kDestMorph, tally::kDestTrigger, tally::kDestShape};
+        for (uint8_t j = 0; j < kNumMapped; j++)
+        {
+            s_dest[j] = settings.Page(kSettingsCv).Pot((uint8_t)(2u * j))
+                .Selector(tally::kDestLabels).Default(defaults[j])
+                .Ident(kDestIds[j]).Name(kDestNames[j])
+                .Help("Any knob on any page, a Settings choice, or a button "
+                      "action. Knobs: +-5 V sweeps the whole knob (FREQ, ROOT "
+                      "and TIME are 1 V/oct; MORPH 1.6 nodes per volt, round "
+                      "the ring). Selectors: 0-5 V steps through every option "
+                      "from where the knob sits. Actions are gates (on above "
+                      "1.5 V); UFG trigger holds while the gate is high.");
+            s_amount[j] = settings.Page(kSettingsCv).Pot((uint8_t)(2u * j + 1u))
+                .Knob().Default(1.0f)
+                .Ident(kAmountIds[j]).Name(kAmountNames[j])
+                .Help("How much, and which way: full right +1, noon off, full "
+                      "left inverted. Ignored by the actions.");
+        }
+    }
 
     /* Every jack is read raw in the callback. */
     for (uint8_t j = 0; j < 6; j++) cv_matrix.Jack(j).Off();
@@ -753,7 +810,7 @@ int main(void)
     host.Product("Tally")
         .BootSlot(home.slot)
         .Pages(osc_page, ufg_page, pattern_page, mods_page, root_page)
-        .Jacks(jk_ext, jk_tz, jk_voct, jk_morph, jk_trig, jk_aux,
+        .Jacks(jk_ext, jk_tz, jk_voct, jk_cv4, jk_cv5, jk_cv6,
                jk_ufg, jk_ds, jk_sin, jk_cos)
         .Buttons(bt_b1, bt_b2, bt_b3)
         .Attach(manual)

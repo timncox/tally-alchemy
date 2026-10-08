@@ -10,6 +10,7 @@
 #include <chrono>
 #include <vector>
 
+#include "cv_map.h"
 #include "tally_engine.h"
 
 using namespace tally;
@@ -259,8 +260,8 @@ static void test_fuzz()
         p.root = 2.f * rnd() - 1.f; p.scale = rand() % 9; p.scale_system = rand() % 3;
         p.harmonic = 2.f * rnd() - 1.f; p.order = rand() % kNumOrders;
         p.detune = 2.f * rnd() - 1.f; p.root_send = rand() & 3; p.ext_mode = rand() % 3;
-        p.mod_track = rand() % 3; p.qtrig = rand() & 1; p.cv_target = rand() % kNumCvTargets;
-        p.voct = 10.f * rnd() - 5.f; p.morph_cv = 10.f * rnd() - 5.f; p.aux_cv = 10.f * rnd() - 5.f;
+        p.mod_track = rand() % 3; p.qtrig = rand() & 1;
+        p.voct = 10.f * rnd() - 5.f; p.morph_nodes = 16.f * rnd() - 8.f; p.time_oct = 10.f * rnd() - 5.f;
         p.gate = rand() & 1;
         for (int i = 0; i < kBlock; i++) { ext[i] = 2.f * rnd() - 1.f; tz[i] = 2.f * rnd() - 1.f; }
         e.Process(p, ext.data(), tz.data(), s.data(), c.data(), kBlock);
@@ -516,6 +517,99 @@ static void test_tzpm()
     CHECK(bin(rb.s, kC4 + 100.f, 2400) > 0.05f, "tzpm: no sideband (%.4f)", bin(rb.s, kC4 + 100.f, 2400));
 }
 
+static void test_cv_map()
+{
+    /* Scaling at amount +1. */
+    {
+        Params p; CvJack j; CvActions a;
+        ApplyCv(kDestMorph, 1.f, 1.f, j, p, a);
+        CHECK(fabsf(p.morph_nodes - 1.6f) < 1e-6f, "morph 1 V = %.3f nodes", p.morph_nodes);
+        ApplyCv(kDestShape, 1.f, 1.f, j, p, a);
+        CHECK(fabsf(p.shape - 0.2f) < 1e-6f, "shape 1 V = %.3f", p.shape);
+        ApplyCv(kDestShape, 10.f, 1.f, j, p, a);
+        CHECK(p.shape == 1.f, "shape clamps: %.3f", p.shape);
+        ApplyCv(kDestHarmonic, 1.f, -1.f, j, p, a);
+        CHECK(fabsf(p.harmonic + 0.4f) < 1e-6f, "harmonic 1 V at -1 = %.3f", p.harmonic);
+        ApplyCv(kDestTime, 2.f, 0.5f, j, p, a);
+        CHECK(fabsf(p.time_oct - 1.f) < 1e-6f, "time 2 V at 0.5 = %.3f oct", p.time_oct);
+        Params q = p;
+        ApplyCv(kDestDepth, 3.f, 0.f, j, p, a);
+        CHECK(p.depth == q.depth, "amount 0 does nothing");
+        ApplyCv(kDestOff, 5.f, 1.f, j, p, a);
+        CHECK(memcmp(&p, &q, sizeof p) == 0, "Off does nothing");
+    }
+    /* Selectors step through every zone over 0-5 V from where they sit. */
+    {
+        Params p; CvJack j; CvActions a;
+        p.scale = 4;
+        Params q = p; ApplyCv(kDestScale, 5.f, 1.f, j, q, a);
+        CHECK(q.scale == 8, "scale +5 V from 4 -> %d", q.scale);
+        q = p; ApplyCv(kDestScale, -5.f, 1.f, j, q, a);
+        CHECK(q.scale == 0, "scale -5 V from 4 -> %d", q.scale);
+        q = p; ApplyCv(kDestLoop, 2.5f, 1.f, j, q, a);
+        CHECK(q.ufg_mode == kUfgOneShot, "loop 2.5 V -> %d", q.ufg_mode);
+        q = p; ApplyCv(kDestExtMode, 5.f, 1.f, j, q, a);
+        CHECK(q.ext_mode == kExtTrack, "ext 5 V -> %d", q.ext_mode);
+        q = p; ApplyCv(kDestQTrig, 5.f, 1.f, j, q, a);
+        CHECK(q.qtrig, "q.trig 5 V");
+    }
+    /* Gates: Schmitt 1.5 / 0.5 V; UFG trigger is a level, the rest fire once. */
+    {
+        Params p; CvJack j; CvActions a;
+        ApplyCv(kDestTrigger, 1.0f, 1.f, j, p, a);
+        CHECK(!a.gate, "1 V is not a gate");
+        ApplyCv(kDestTrigger, 2.0f, 1.f, j, p, a);
+        CHECK(a.gate, "2 V is a gate");
+        a = CvActions(); ApplyCv(kDestTrigger, 1.0f, 1.f, j, p, a);
+        CHECK(a.gate, "1 V holds it (hysteresis)");
+        a = CvActions(); ApplyCv(kDestTrigger, 0.2f, 1.f, j, p, a);
+        CHECK(!a.gate, "0.2 V releases");
+        CvJack w; int fired = 0;
+        const float seq[6] = {0.f, 5.f, 5.f, 0.f, 5.f, 5.f};
+        for (float v : seq) { CvActions b; ApplyCv(kDestWriteStep, v, 1.f, w, p, b); fired += b.write_step; }
+        CHECK(fired == 2, "write step fires per rising edge: %d", fired);
+    }
+    /* Through the engine: FREQ and ROOT are 1 V/oct, TIME doubles the UFG. */
+    {
+        Engine e; e.Init(kSr);
+        Params p; CvJack j; CvActions a;
+        ApplyCv(kDestFreq, 1.f, 1.f, j, p, a);
+        Render r = run(e, p, 0.3f);
+        const float f = crossings_hz(r.s, 2400);
+        CHECK(fabsf(f - 2.f * kC4) < 1.f, "FREQ 1 V: %.2f Hz", f);
+        Params q; ApplyCv(kDestRoot, -1.f, 1.f, j, q, a);
+        e.Init(kSr); r = run(e, q, 0.3f);
+        const float g = crossings_hz(r.s, 2400);
+        CHECK(fabsf(g - 0.5f * kC4) < 0.5f, "ROOT -1 V: %.2f Hz", g);
+        Params t0; e.Init(kSr); run(e, t0, 0.01f); const float u0 = e.status().ufg_hz;
+        Params t1; ApplyCv(kDestTime, 1.f, 1.f, j, t1, a);
+        e.Init(kSr); run(e, t1, 0.01f); const float u1 = e.status().ufg_hz;
+        CHECK(fabsf(u1 / u0 - 2.f) < 0.01f, "TIME 1 V: x%.3f", u1 / u0);
+    }
+    /* Every destination at +-5 V, every amount: the engine stays finite. */
+    {
+        Engine e; e.Init(kSr);
+        std::vector<float> s(kBlock), c(kBlock);
+        bool finite = true;
+        for (int d = 0; d < kNumDests; d++)
+            for (float v : {-5.f, 0.f, 5.f})
+                for (float am : {-1.f, 0.5f, 1.f})
+                {
+                    Params p; CvJack j; CvActions a;
+                    ApplyCv((uint8_t)d, v, am, j, p, a);
+                    p.gate = a.gate;
+                    for (int b = 0; b < 20; b++)
+                    {
+                        e.Process(p, nullptr, nullptr, s.data(), c.data(), kBlock);
+                        for (int i = 0; i < kBlock; i++)
+                            if (!std::isfinite(s[i]) || fabsf(s[i]) > 1.f) finite = false;
+                    }
+                }
+        CHECK(finite, "a destination drove the output out of range");
+        CHECK(kDestLabels[kNumDests - 1] != nullptr, "labels cover every destination");
+    }
+}
+
 static void test_cpu()
 {
     /* Host time per 24-frame block with everything on; the budget is 500 us. */
@@ -547,6 +641,7 @@ int main()
     test_pattern();
     test_track();
     test_tzpm();
+    test_cv_map();
     test_cpu();
     printf("%d checks, %d failed\n", g_checks, g_fail);
     return g_fail ? 1 : 0;

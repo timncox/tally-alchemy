@@ -8,7 +8,7 @@
 # A worktree with empty lib/ submodules: export EMU_ALCHEMY_DIR and
 # EMU_LIBDAISY_DIR as absolute paths to a checkout that has them.
 EMU_TARGET       := tally_alchemy
-EMU_CPP_SOURCES  := src/tally/tally_alchemy.cpp src/tally/tally_engine.cpp
+EMU_CPP_SOURCES  := src/tally/tally_alchemy.cpp src/tally/tally_engine.cpp src/tally/cv_map.cpp
 EMU_C_SOURCES    :=
 EMU_C_INCLUDES   := -Isrc/tally -Isrc/common
 EMU_C_DEFS       := -DTALLY_VERSION=\"emu\" -DTALLY_GIT_HASH=\"emu\"

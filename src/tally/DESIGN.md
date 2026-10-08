@@ -28,7 +28,7 @@ holding B3 shows the fifth.
 | **ROOT** (hold B3) | ROOT ±3 oct about C4 | SCALE (9) | HARMONIC | ORDER (5) | DETUNE | ROUTE (OSC / both / UFG / none) |
 
 Buttons:
-- **B1** triggers the UFG and, held, is its gate. It ORs with J5.
+- **B1** triggers the UFG and, held, is its gate. It ORs with any jack mapped to UFG trigger (J5 by default).
   - On PATTERN: a tap writes a new value at the current step, a double tap
     undoes it, and holding for 1 s writes a whole new pattern. These stand in
     for the Pattern switch.
@@ -36,8 +36,9 @@ Buttons:
     button). B3's LEDs show it: grey, blue, amber.
 - **B2** goes to the next page. **B2+B3 for 2 s** opens Settings.
 
-Settings: **EXT (J1)** Off/Sync/Track, **MOD TRACKS** Root/OSC/UFG,
-**J6 CV** target, **Q.TRIG** (firmware page). Page 1 is the SD picker.
+Settings: **EXT (J1)** Off/Sync/Track and **MOD TRACKS** Root/OSC/UFG
+(page 0); the SD picker and **Q.TRIG** (page 1); the **CV map** (page 2,
+below).
 
 What the original has that the Lab has no room for, and where it went:
 - **Attenuverters and normalisation buttons:** the original has one per CV
@@ -62,9 +63,35 @@ What the original has that the Lab has no room for, and where it went:
 | J1 | EXT: damped-sync leader (Sync) or the pitch tracked (Track). AC-coupled codec input. **[described]** |
 | J2 | TZPM: through-zero phase modulation into the OSC, depth on PATTERN P6. AC-coupled. **[described]** |
 | J3 | V/Oct for Root (calibrated `Volts()`). |
-| J4 | MORPH CV: 1.6 nodes per volt, wrapping round the ring. |
-| J5 | UFG trigger / gate (`mi::Gate`, >1.5 V on, polled every 0.5 ms block). |
-| J6 | One CV, routed by Settings: SHIFT / DEPTH / SHAPE / DAMPED (0.2 per V), UFG TIME (1 V/oct), or HARMONIC. |
+| J4 | Mappable CV (default MORPH, 1.6 nodes per volt round the ring). |
+| J5 | Mappable CV (default UFG trigger / gate: on above 1.5 V, off below 0.5 V). |
+| J6 | Mappable CV (default SHAPE, 0.2 per volt). |
+
+### The CV map (`cv_map.{h,cpp}`)
+
+J4, J5 and J6 each drive any of 40 destinations with an amount: every knob
+on every page (30), four Settings choices (scale system, EXT mode, MOD
+TRACKS, Q.TRIG) and five actions (UFG trigger, write step, restore step,
+new pattern, next scale system). J3 stays V/Oct. The defaults are the old
+fixed jacks, so nothing changes until a jack is remapped.
+
+Set on **Settings page 2**, one jack per row of the panel: P1/P2 J4, P3/P4
+J5, P5/P6 J6. Destination on the left, amount on the right (an
+attenuverter: full right +1, noon off, full left inverted). The settings
+save with the rest and carry `Ident`s (`cv_j4_dest`, `cv_j4_amount`, …), so
+the web control page shows them as menus.
+
+Scaling, at amount +1:
+- **Knobs:** ±5 V sweeps the whole knob (0.2 of its range per volt).
+  FREQ, ROOT and TIME are 1 V/oct; MORPH is 1.6 nodes per volt and wraps.
+- **Selectors and Settings choices:** 0–5 V steps through every option from
+  where the knob sits.
+- **Actions:** gates (Schmitt, 1.5 V / 0.5 V); the action fires on the
+  rising edge. UFG trigger is the level, so a held gate sustains.
+
+The map works on a per-block copy of the panel (every 0.5 ms), so CV moves
+the sound but not the knob rings, and a mapped Settings choice never
+changes the saved setting. Nothing the map touches is written back.
 | J7 | UFG function out, 0–5 V (STM32 DAC, once per block). |
 | J8 | Δ–Σ out, 0–5 V (STM32 DAC, once per block). |
 | J9 / J10 | SINE / COSINE: the stereo pair. **[described]** |
@@ -211,7 +238,9 @@ above 80 %, and the P1 boot readout.
 
 ## Tests
 
-- `make test` (from `test/`): 276 native checks under ASan+UBSan.
+- `make test` (from `test/`): 298 native checks under ASan+UBSan, including
+  the CV map's scaling (1 V/oct through the engine, zone stepping, gate
+  hysteresis, every destination at ±5 V staying finite).
   - Centre at 32 morph positions, plus quadrature
   - V/oct, FREQ and ROUTE
   - Both scale systems' quantisers
@@ -226,6 +255,9 @@ above 80 %, and the P1 boot readout.
   checks, including the generic smoke test, all passing. They cover Centre and
   V/Oct, the waveshapers, page cycling and J7's rate, damped one-shot hits
   from J5 and B1, the Δ–Σ on J8, the new-pattern hold, and the scale system.
+- `emu-tests-hostlink/cvmap.mjs` (emu-hostlink emulator): remaps J4/J5/J6
+  over HostLink, as the control page would, then listens: J6 → FREQ +1 V is
+  C5, J5 → SHIFT moves to harmonic 2, J4 → Off changes nothing (9 checks).
 
 ```
 EMU_ALCHEMY_DIR=~/tim-os/tally-alchemy/lib/alchemy-sdk \

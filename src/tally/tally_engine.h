@@ -48,7 +48,6 @@ enum UfgMode : uint8_t { kUfgLoop = 0, kUfgOneShot };
 enum TrigType : uint8_t { kTrigSync = 0, kTrigReverse, kTrigSustainSync, kTrigSustainReverse };
 enum OrderZone : uint8_t { kOrderFree = 0, kOrderEven, kOrderAll, kOrderOdd, kOrderQuant, kNumOrders };
 enum ModSource : uint8_t { kSrcUfg = 0, kSrcDs };
-enum CvTarget : uint8_t { kCvShift = 0, kCvDepth, kCvShape, kCvDamped, kCvTime, kCvHarmonic, kNumCvTargets };
 
 const char* ScaleName(uint8_t system, int scale);
 
@@ -94,13 +93,13 @@ struct Params
     uint8_t ext_mode  = kExtOff;
     uint8_t mod_track = kTrackRoot;
     bool    qtrig     = false;
-    uint8_t cv_target = kCvShape;
 
-    /* Jacks (volts) and the gate */
-    float voct     = 0.f;      /* J3 */
-    float morph_cv = 0.f;      /* J4 */
-    float aux_cv   = 0.f;      /* J6, routed by cv_target */
-    bool  gate     = false;    /* J5 or B1 */
+    /* CV that has no knob field of its own (the firmware's CV mapper adds
+     * everything else straight onto the fields above). */
+    float voct        = 0.f;   /* J3, volts: Root 1 V/oct */
+    float morph_nodes = 0.f;   /* added ring position, in nodes (wraps) */
+    float time_oct    = 0.f;   /* added UFG rate, in octaves */
+    bool  gate        = false; /* UFG trigger / gate (J5, B1, or a mapped jack) */
 };
 
 /* What the panel shows, refreshed by every Process(). */
