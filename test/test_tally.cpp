@@ -456,6 +456,16 @@ static void test_pattern()
     e.RestoreStep();
     CHECK(e.PatternValue(at) == was, "restore step");
 
+    /* The pattern survives a round trip through the preset format. */
+    uint8_t lv[kMaxSteps];
+    uint16_t gl = 0;
+    e.GetPattern(lv, &gl);
+    Engine f;
+    f.Init(kSr, 99u);
+    f.SetPattern(lv, gl);
+    for (int i = 0; i < kMaxSteps; i++)
+        CHECK(fabsf(f.PatternValue(i) - e.PatternValue(i)) < 1e-6f, "pattern round trip at %d", i);
+
     /* D-S modulating pitch moves the OSC. */
     bool any_diff = false;
     float v0 = -1.f;

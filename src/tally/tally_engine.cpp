@@ -337,6 +337,28 @@ void Engine::NewPattern()
     }
 }
 
+void Engine::GetPattern(uint8_t* levels, uint16_t* glide) const
+{
+    uint16_t g = 0;
+    for (int i = 0; i < kMaxSteps; i++)
+    {
+        levels[i] = (uint8_t)Clamp(floorf(pattern_[i] * 7.f + 0.5f), 0.f, 7.f);
+        if (glide_[i]) g = (uint16_t)(g | (1u << i));
+    }
+    *glide = g;
+}
+
+void Engine::SetPattern(const uint8_t* levels, uint16_t glide)
+{
+    for (int i = 0; i < kMaxSteps; i++)
+    {
+        pattern_[i]  = (float)(levels[i] > 7 ? 7 : levels[i]) / 7.f;
+        previous_[i] = pattern_[i];
+        glide_[i]    = (glide >> i) & 1u;
+    }
+    ds_target_ = pattern_[step_];
+}
+
 void Engine::AdvancePattern(const Params& p)
 {
     /* LENGTH 2..16 with a dead zone at noon for 8. */

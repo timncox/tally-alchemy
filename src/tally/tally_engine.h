@@ -135,6 +135,11 @@ class Engine
 
     const Status& status() const { return st_; }
 
+    /* The stored pattern as 3-bit levels (0..7) plus glide flags, for the
+     * preset slot. */
+    void GetPattern(uint8_t* levels, uint16_t* glide) const;
+    void SetPattern(const uint8_t* levels, uint16_t glide);
+
     /* For the tests. */
     float PatternValue(int i) const { return pattern_[i & (kMaxSteps - 1)]; }
     float QuantizeNote(const Params& p, float note) const;
