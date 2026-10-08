@@ -431,6 +431,12 @@ static daisy::UsbHandle          bench_usb;
 static hostlink::CdcUsbTransport bench_cdc;
 #endif
 
+#ifdef EMU_FW_NAME
+/* Emulator builds only (alchemy-lab emu): its panel labels follow this page
+ * (emu.mk EMU_PAGE_LABELS). Never compiled for the module. */
+extern "C" int emu_active_page(void) { return pager.Page(); }
+#endif
+
 /* ---- control frame -> audio block ---------------------------------------- */
 
 /* The control thread writes the panel here; the callback copies it once
