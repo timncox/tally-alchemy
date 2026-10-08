@@ -413,9 +413,9 @@ static Pager       pager = Pager(kNumAppPages, kNumPots)
                                .Cycle(hw.buttons[kButtonB2], kPageOsc, kPageUfg, kPagePattern, kPageMods)
                                .Shift(hw.buttons[kButtonB3], kPageRoot);
 
-/* Home slot 3: 4-15 belong to the other family firmwares (memory
+/* Home slot 2: 3 is Stencil, 4-15 the other family firmwares (memory
  * project_break_alchemy has the card's map), 0 is the migration slot. */
-static mi::HomeSlot home(3u);
+static mi::HomeSlot home(2u);
 static Presets      presets(hw.seed.qspi);
 static Settings     settings(hw, &pager);
 static CvMatrix     cv_matrix(kNumCvInputs);

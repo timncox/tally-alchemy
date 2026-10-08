@@ -191,8 +191,8 @@ track dropped after 100 ms with no crossing. FREQ becomes a ±3 octave ratio.
 - **TallyExtras** (schema tag `'TLY'`): the CPU readout, the scale system, and
   the stored pattern as 16 three-bit levels plus glide flags. So a pattern
   survives a power cycle.
-- **Home slot 3:** 0 is the migration slot and 4–15 belong to the other family
-  firmwares, which leaves 1–2 for hand-saved presets.
+- **Home slot 2:** 0 is the migration slot, 3 is Stencil, and 4–15 belong to the other family
+  firmwares, which leaves 1 for hand-saved presets.
 - **First boot:** Centre, Root C4 to the OSC, a ~2.6 Hz looping UFG, and a
   locked 8-step pattern.
 
