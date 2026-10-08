@@ -16,6 +16,5 @@ EMU_ALCHEMY_DIR  ?= lib/alchemy-sdk
 EMU_LIBDAISY_DIR ?= lib/libDaisy
 EMU_LABELS       := MORPH|FREQ|SHIFT|DEPTH|SHAPE|DAMPED
 EMU_LABELS_ALT   := ROOT|SCALE|HARMONIC|ORDER|DETUNE|ROUTE
-# One set per Pager page (OSC, UFG, PATTERN, MODS, ROOT); the emulator shows
-# the set for the page tally_alchemy.cpp's emu_active_page() reports.
-EMU_PAGE_LABELS  := MORPH|FREQ|SHIFT|DEPTH|SHAPE|DAMPED;TIME|SKEW|U.SHAPE|STRETCH|LOOP|TRIG TYPE;CHANCE|LENGTH|SMOOTH|PITCH|TIME MOD|TZPM;SHIFT MOD|DEPTH MOD|SHAPE MOD|MORPH MOD|DAMPED MOD|SOURCE;ROOT|SCALE|HARMONIC|ORDER|DETUNE|ROUTE
+# (On the emu-hostlink emulator the labels come from the firmware's own
+# VirtualKnob names on whatever page is showing; these are the fallback.)
