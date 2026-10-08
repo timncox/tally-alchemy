@@ -18,6 +18,24 @@ const char* const kDestLabels[kNumDests] = {
     "UFG trigger (gate)", "Write step (gate)", "Restore step (gate)",
     "New pattern (gate)", "Next scale system (gate)"};
 
+const char* const kSectionLabels[kNumSections] = {
+    "Off", "OSC", "UFG", "Pattern", "Mods", "Root", "Settings", "Actions"};
+const char* const kSlotLabels[kNumSlots] = {"P1", "P2", "P3", "P4", "P5", "P6"};
+
+uint8_t DestFor(uint8_t section, uint8_t slot)
+{
+    if (slot >= kNumSlots) return kDestOff;
+    switch (section)
+    {
+        case kSecOsc: case kSecUfg: case kSecPattern: case kSecMods: case kSecRoot:
+            /* The five pages' knobs are declared in pot order, P1..P6. */
+            return (uint8_t)(kDestMorph + (section - kSecOsc) * kNumSlots + slot);
+        case kSecSettings: return slot < 4 ? (uint8_t)(kDestScaleSystem + slot) : kDestOff;
+        case kSecActions:  return slot < 5 ? (uint8_t)(kDestTrigger + slot) : kDestOff;
+        default:           return kDestOff;
+    }
+}
+
 namespace {
 
 inline float Clampf(float v, float lo, float hi) { return v < lo ? lo : (v > hi ? hi : v); }

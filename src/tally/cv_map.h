@@ -44,6 +44,21 @@ enum Dest : uint8_t {
 
 extern const char* const kDestLabels[kNumDests];
 
+/* On the module a destination is picked as a SECTION and a KNOB: the page,
+ * then the pot on it (P1-P6, front view), so "UFG, P4" is STRETCH. Two small
+ * selectors instead of one of 40 (the SDK's selector ring draws 16 at most).
+ * Settings: P1 scale system, P2 Ext mode, P3 Mod tracks, P4 Q.Trig.
+ * Actions: P1 UFG trigger, P2 write step, P3 restore step, P4 new pattern,
+ * P5 next scale system. A slot with nothing on it is Off. */
+enum Section : uint8_t {
+    kSecOff = 0, kSecOsc, kSecUfg, kSecPattern, kSecMods, kSecRoot, kSecSettings, kSecActions,
+    kNumSections
+};
+constexpr uint8_t kNumSlots = 6;
+extern const char* const kSectionLabels[kNumSections];
+extern const char* const kSlotLabels[kNumSlots];
+uint8_t DestFor(uint8_t section, uint8_t slot);
+
 /* One-shot actions a mapped gate asked for this block. */
 struct CvActions
 {

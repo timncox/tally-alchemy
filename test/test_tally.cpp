@@ -608,6 +608,20 @@ static void test_cv_map()
         CHECK(finite, "a destination drove the output out of range");
         CHECK(kDestLabels[kNumDests - 1] != nullptr, "labels cover every destination");
     }
+    /* Section + knob reach every destination exactly once. */
+    {
+        int hits[kNumDests] = {};
+        for (int sec = 0; sec < kNumSections; sec++)
+            for (int k = 0; k < kNumSlots; k++) hits[DestFor((uint8_t)sec, (uint8_t)k)]++;
+        for (int d = 1; d < kNumDests; d++)
+            CHECK(hits[d] == 1, "destination %s reached %d times", kDestLabels[d], hits[d]);
+        CHECK(DestFor(kSecOsc, 0) == kDestMorph && DestFor(kSecUfg, 3) == kDestStretch
+              && DestFor(kSecRoot, 5) == kDestRoute && DestFor(kSecPattern, 3) == kDestPitchAtt,
+              "page knobs land on their pots");
+        CHECK(DestFor(kSecSettings, 0) == kDestScaleSystem && DestFor(kSecSettings, 4) == kDestOff
+              && DestFor(kSecActions, 0) == kDestTrigger && DestFor(kSecActions, 5) == kDestOff,
+              "settings and actions slots");
+    }
 }
 
 static void test_cpu()

@@ -75,11 +75,21 @@ TRACKS, Q.TRIG) and five actions (UFG trigger, write step, restore step,
 new pattern, next scale system). J3 stays V/Oct. The defaults are the old
 fixed jacks, so nothing changes until a jack is remapped.
 
-Set on **Settings page 2**, one jack per row of the panel: P1/P2 J4, P3/P4
-J5, P5/P6 J6. Destination on the left, amount on the right (an
-attenuverter: full right +1, noon off, full left inverted). The settings
-save with the rest and carry `Ident`s (`cv_j4_dest`, `cv_j4_amount`, …), so
-the web control page shows them as menus.
+Set in Settings (B2+B3 2 s, then B1 to step pages), one jack per row of
+the panel (top J4, middle J5, bottom J6):
+- **Page 3, "CV to":** SECTION on the left (Off, OSC, UFG, Pattern, Mods,
+  Root, Settings, Actions), KNOB on the right (P1–P6, its place on the
+  panel). UFG + P4 is STRETCH. Settings: P1 scale system, P2 Ext, P3 Mod
+  tracks, P4 Q.Trig. Actions: P1 UFG trigger, P2 write step, P3 restore
+  step, P4 new pattern, P5 next scale system.
+- **Page 4, "CV amount":** the amount on the left of each row (an
+  attenuverter: full right +1, noon off, full left inverted).
+
+Two small selectors rather than one of 40: the SDK's selector ring draws at
+most 16 options (`ring_frame.cpp`, a 16-bit availability mask), so a
+40-option knob went dark past noon. The settings save with the rest and
+carry `Ident`s (`cv_j4_section`, `cv_j4_knob`, `cv_j4_amount`, …), so the
+web control page shows them as menus.
 
 Scaling, at amount +1:
 - **Knobs:** ±5 V sweeps the whole knob (0.2 of its range per volt).
@@ -238,7 +248,7 @@ above 80 %, and the P1 boot readout.
 
 ## Tests
 
-- `make test` (from `test/`): 298 native checks under ASan+UBSan, including
+- `make test` (from `test/`): 339 native checks under ASan+UBSan, including
   the CV map's scaling (1 V/oct through the engine, zone stepping, gate
   hysteresis, every destination at ±5 V staying finite).
   - Centre at 32 morph positions, plus quadrature

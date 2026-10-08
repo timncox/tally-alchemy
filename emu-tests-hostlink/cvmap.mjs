@@ -20,8 +20,8 @@ const [emuDir, exe] = process.argv.slice(2);
 if (!emuDir || !exe) { console.error("usage: cvmap.mjs <alchemy-lab emu dir> <tally emu exe>"); process.exit(2); }
 const { HostLink, encodeState } = await import(pathToFileURL(join(emuDir, "web/hostlink.js")).href);
 
-// Destination indices (src/tally/cv_map.h).
-const DEST = { off: 0, freq: 2, shift: 3 };
+// Sections and knob slots (src/tally/cv_map.h): OSC P2 = Freq, OSC P3 = Shift.
+const SEC = { off: 0, osc: 1 };
 
 const dir = mkdtempSync(join(tmpdir(), "tally-cv-"));
 const sockPath = join(dir, "hl.sock"), script = join(dir, "listen.emu");
@@ -72,9 +72,9 @@ try {
   for (let i = 0; i < 25 && !id; i++) id = await link.hello().catch(() => null);
   const desc = await link.descriptor();
   const live = encodeState(desc, await link.getLive(), {
-    cv_j4_dest: DEST.off, cv_j4_amount: 1,
-    cv_j5_dest: DEST.shift, cv_j5_amount: 1,
-    cv_j6_dest: DEST.freq, cv_j6_amount: 1,
+    cv_j4_section: SEC.off, cv_j4_knob: 0, cv_j4_amount: 1,
+    cv_j5_section: SEC.osc, cv_j5_knob: 2, cv_j5_amount: 1,
+    cv_j6_section: SEC.osc, cv_j6_knob: 1, cv_j6_amount: 1,
   });
   await link.setLive(live);
   console.log("mapped J4 -> Off, J5 -> Shift, J6 -> Freq over HostLink");
