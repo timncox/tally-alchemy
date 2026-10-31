@@ -407,8 +407,16 @@ struct TallyExtras : public Serializable
         float av = meter.GetAvgCpuLoad();
         if (av > 1.f) av = 1.f;
         if (av > cpu_avg) cpu_avg = av;
-        return cpu_peak > saved_peak + 0.05f;
+        /* Report a rise ONCE: comparing only with saved_peak (which moves
+         * only after a save) returned true every frame once the peak rose,
+         * and the caller's Touch() then restarted the autosave countdown
+         * forever -- the panel was never saved (module 1, 2026-10-31). */
+        const float ref = saved_peak > reported_ ? saved_peak : reported_;
+        if (cpu_peak <= ref + 0.05f) return false;
+        reported_ = cpu_peak;
+        return true;
     }
+    float reported_ = 0.0f;   /* per session, not saved */
 };
 
 /* ---- surfaces ------------------------------------------------------------ */

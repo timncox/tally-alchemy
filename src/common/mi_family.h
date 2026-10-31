@@ -197,8 +197,16 @@ struct CpuExtras : public alchemy::Serializable
         float av = cpu.GetAvgCpuLoad();
         if (av > 1.0f) av = 1.0f;
         if (av > cpu_avg) cpu_avg = av;
-        return cpu_peak > saved_peak + 0.05f;
+        /* Report a rise ONCE: comparing only with saved_peak (which moves
+         * only after a save) returned true every frame once the peak rose,
+         * and the caller's Touch() then restarted the autosave countdown
+         * forever -- the panel was never saved (module 1, 2026-10-31). */
+        const float ref = saved_peak > reported_ ? saved_peak : reported_;
+        if (cpu_peak <= ref + 0.05f) return false;
+        reported_ = cpu_peak;
+        return true;
     }
+    float reported_ = 0.0f;   /* per session, not saved */
 };
 
 /* ---- HomeSlot -----------------------------------------------------------
@@ -218,7 +226,8 @@ struct HomeSlot
 {
     uint8_t  slot;
     bool     dirty = false;
-    uint32_t since = 0;
+    uint32_t since = 0;   /* last change */
+    uint32_t first = 0;   /* first change since the last save */
 
     explicit HomeSlot(uint8_t s) : slot(s) {}
 
@@ -233,6 +242,7 @@ struct HomeSlot
 
     void Touch(uint32_t now)
     {
+        if (!dirty) first = now;
         dirty = true;
         since = now;
     }
@@ -241,7 +251,10 @@ struct HomeSlot
      * Returns true when it saved. */
     bool Service(alchemy::Presets& presets, AlchemyLab& hw, uint32_t now, bool busy)
     {
-        if (!dirty || busy || now - since < 5000u) return false;
+        /* 5 s after the last change -- or 30 s after the first, so a
+         * source that keeps touching can delay a save, never block it. */
+        if (!dirty || busy) return false;
+        if (now - since < 5000u && now - first < 30000u) return false;
         for (uint8_t b = 0; b < alchemy::kNumButtons; b++)
             if (hw.buttons[b].Pressed()) return false;
         presets.Save(slot);
