@@ -82,7 +82,7 @@ struct State
     uint32_t off      = 0;          /* write / verify offset */
     uint32_t erased   = 0;          /* erase offset */
     float    progress = 0.0f;       /* 0..1 for the FLASH ring */
-    const char* err   = "";
+    const char* err   = nullptr;   /* set with St::Error (read only then); null keeps g all-zero, in .bss, out of the SRAM image */
     bool        remote = false;     /* this flash was started over HostLink */
 };
 
