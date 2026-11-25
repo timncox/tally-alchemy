@@ -31,7 +31,10 @@ else
 override BUILD_DIR := build
 endif
 
-CPP_SOURCES = src/tally/tally_alchemy.cpp src/tally/tally_engine.cpp src/tally/cv_map.cpp src/common/picker.cpp
+CPP_SOURCES = src/tally/tally_alchemy.cpp src/tally/tally_engine.cpp src/tally/cv_map.cpp src/common/picker.cpp \
+    src/common/phone_ext.cpp src/common/midi_usb_transport.cpp src/common/usb_shared.cpp
+# Phone mode only (no Phone+Audio): stand-ins for usb_audio.c's MIDI hooks.
+C_SOURCES = src/common/uac_none.c
 CPP_SOURCES += $(sort $(shell find $(ALCHEMY_DIR)/framework/src -name '*.cpp'))
 CPP_SOURCES += $(sort $(wildcard $(ALCHEMY_DIR)/hardware/alchemy-lab/v2/src/*.cpp))
 

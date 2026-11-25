@@ -47,6 +47,8 @@
 #include "alchemy/surface/virtual_knob.h"
 
 #include "mi_family.h"
+#include "led_mirror.h"
+#include "phone_kit.h"
 #include "picker.h"
 #include "cv_map.h"
 #include "tally_engine.h"
@@ -422,9 +424,16 @@ struct TallyExtras : public Serializable
 /* ---- surfaces ------------------------------------------------------------ */
 
 static ControlLoop loop(hw);
+/* The front USB-C (Mac or Phone) and the panel buttons with the phone's
+ * presses added (phone_kit.h). Declared before the pager, which holds the
+ * buttons. */
+static phonefront::Front              front;
+static phone::LedMirror<kLedTotal>    led_mirror;
+static phone::PhoneExtension          phone_ext;
+
 static Pager       pager = Pager(kNumAppPages, kNumPots)
-                               .Cycle(hw.buttons[kButtonB2], kPageOsc, kPageUfg, kPagePattern, kPageMods)
-                               .Shift(hw.buttons[kButtonB3], kPageRoot);
+                               .Cycle(front.Button(kButtonB2), kPageOsc, kPageUfg, kPagePattern, kPageMods)
+                               .Shift(front.Button(kButtonB3), kPageRoot);
 
 /* Home slot 2: 3 is Stencil, 4-15 the other family firmwares (memory
  * project_break_alchemy has the card's map), 0 is the migration slot. */
@@ -483,8 +492,8 @@ static void OnPoll(uint32_t now)
         swallow.All();
         return;
     }
-    const bool b1 = swallow.Live(hw, kButtonB1);
-    const bool b3 = swallow.Live(hw, kButtonB3);
+    const bool b1 = swallow.Live(front.Button(kButtonB1), kButtonB1);
+    const bool b3 = swallow.Live(front.Button(kButtonB3), kButtonB3);
     const uint8_t page = pager.Page();
 
     if (b1 && !b1_down) { b1_down = true; b1_t0 = now; b1_long_fired = false; }
@@ -621,6 +630,10 @@ static void OnFrame(void)
     if (prev_settings && !sact) home.Touch(now);
     prev_settings = sact;
 
+    /* A firmware switch the phone started; a changed USB port goes back to
+     * the card. */
+    if (front.Service(sd, sact, now)) home.Touch(now);
+
     if (home.Service(presets, hw, now, sact || picker::Busy()))
         g_saved_peak = extras.cpu_peak;
 }
@@ -750,6 +763,10 @@ static void AudioCallback(daisy::AudioHandle::InputBuffer  in,
 int main(void)
 {
     hw.Init(daisy::SaiHandle::Config::SampleRate::SAI_48KHZ, kBlockSize);
+    /* Every frame the panel shows is copied for the phone. */
+    led_mirror.Wrap(hw.strip);
+    hw.leds.Init(led_mirror, hw.Layout());
+    front.BindButtons(hw);
     cpu.Init(hw.SampleRate(), (int)hw.BlockSize());
     if (hw.BlockSize() != kBlockSize) mi::fault_forever(hw);
 
@@ -763,6 +780,7 @@ int main(void)
 
     sd.Init();
     picker::Install(settings, kSettingsFirmware, sd, hw);
+    front.Install(settings, kSettingsFirmware, 5);
     settings.UseBrightness();
     settings.UsePresets(presets);
     s_ext = settings.Page(kSettingsMain).Pot(1)
@@ -841,11 +859,15 @@ int main(void)
                jk_ufg, jk_ds, jk_sin, jk_cos)
         .Buttons(bt_b1, bt_b2, bt_b3)
         .Attach(manual)
-        .Extend(fs_ext);
+        .Extend(fs_ext)
+        .Extend(phone_ext);
 #ifdef TALLY_BENCH_USB
     bench_cdc.Init(bench_usb, daisy::UsbHandle::FS_INTERNAL, "Tally (bench)");
     host.Transport(bench_cdc);
+#else
+    host.Transport(front.Link());
 #endif
+    front.Wire(phone_ext, led_mirror);
 
     presets.Manage(pager);
     presets.Manage(settings);
@@ -890,6 +912,12 @@ int main(void)
     extras.cpu_peak = 0.0f;
     extras.cpu_avg  = 0.0f;
     g_readout_until = System::GetNow() + 2500u;
+
+#ifndef TALLY_BENCH_USB
+    /* The front port: the card's USB setting (one for every firmware), Mac
+     * or Phone. B1 held through power-up is Mac mode this boot. */
+    front.Start(sd, hw.buttons[kButtonB1], "Tally");
+#endif
 
     hw.StartAudio(AudioCallback);
     cpu.Reset();
